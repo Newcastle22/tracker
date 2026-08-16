@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Diario de trading</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" />
+<style>
+  html, body { margin: 0; padding: 0; background: #0B1220; }
+  #root { max-width: 1100px; margin: 0 auto; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const { useState, useEffect, useMemo, useCallback } = React;
+window.storage = {
+  async get(key) {
+    const raw = localStorage.getItem("tt:" + key);
+    if (raw === null) return null;
+    return { key, value: raw, shared: false };
+  },
+  async set(key, value) {
+    localStorage.setItem("tt:" + key, value);
+    return { key, value, shared: false };
+  },
+  async delete(key) {
+    const existed = localStorage.getItem("tt:" + key) !== null;
+    localStorage.removeItem("tt:" + key);
+    return { key, deleted: existed, shared: false };
+  },
+  async list(prefix) {
+    const p = "tt:" + (prefix || "");
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith(p)).map((k) => k.slice(3));
+    return { keys, prefix, shared: false };
+  }
+};
+function Icon({ children, size = 16, color = "currentColor", className = "", style }) {
+  return /* @__PURE__ */ React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", className, style }, children);
+}
+const Plus = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "5", x2: "12", y2: "19" }), /* @__PURE__ */ React.createElement("line", { x1: "5", y1: "12", x2: "19", y2: "12" }));
+const X = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("line", { x1: "18", y1: "6", x2: "6", y2: "18" }), /* @__PURE__ */ React.createElement("line", { x1: "6", y1: "6", x2: "18", y2: "18" }));
+const Pencil = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M12 20h9" }), /* @__PURE__ */ React.createElement("path", { d: "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" }));
+const Trash2 = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "3 6 5 6 21 6" }), /* @__PURE__ */ React.createElement("path", { d: "M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" }), /* @__PURE__ */ React.createElement("path", { d: "M10 11v6" }), /* @__PURE__ */ React.createElement("path", { d: "M14 11v6" }), /* @__PURE__ */ React.createElement("path", { d: "M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" }));
+const TrendingUp = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "23 6 13.5 15.5 8.5 10.5 1 18" }), /* @__PURE__ */ React.createElement("polyline", { points: "17 6 23 6 23 12" }));
+const TrendingDown = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "23 18 13.5 8.5 8.5 13.5 1 6" }), /* @__PURE__ */ React.createElement("polyline", { points: "17 18 23 18 23 12" }));
+const ChevronDown = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "6 9 12 15 18 9" }));
+const ChevronRight = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "9 18 15 12 9 6" }));
+const SettingsIcon = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "3" }), /* @__PURE__ */ React.createElement("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" }));
+const ArrowUpRight = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("line", { x1: "7", y1: "17", x2: "17", y2: "7" }), /* @__PURE__ */ React.createElement("polyline", { points: "7 7 17 7 17 17" }));
+const ArrowDownRight = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("line", { x1: "7", y1: "7", x2: "17", y2: "17" }), /* @__PURE__ */ React.createElement("polyline", { points: "17 7 17 17 7 17" }));
+const ShieldAlert = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "8", x2: "12", y2: "12" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "16", x2: "12.01", y2: "16" }));
+const UserCircle = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "12", r: "10" }), /* @__PURE__ */ React.createElement("circle", { cx: "12", cy: "10", r: "3" }), /* @__PURE__ */ React.createElement("path", { d: "M6.5 19a6 6 0 0 1 11 0" }));
+const RefreshCw = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("polyline", { points: "23 4 23 10 17 10" }), /* @__PURE__ */ React.createElement("polyline", { points: "1 20 1 14 7 14" }), /* @__PURE__ */ React.createElement("path", { d: "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" }));
+const FileText = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }), /* @__PURE__ */ React.createElement("polyline", { points: "14 2 14 8 20 8" }), /* @__PURE__ */ React.createElement("line", { x1: "16", y1: "13", x2: "8", y2: "13" }), /* @__PURE__ */ React.createElement("line", { x1: "16", y1: "17", x2: "8", y2: "17" }));
+const AlertTriangle = (p) => /* @__PURE__ */ React.createElement(Icon, { ...p }, /* @__PURE__ */ React.createElement("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "9", x2: "12", y2: "13" }), /* @__PURE__ */ React.createElement("line", { x1: "12", y1: "17", x2: "12.01", y2: "17" }));
+function EquityChart({ data, baseline, money }) {
+  const width = 700, height = 220, padding = { top: 10, right: 16, bottom: 24, left: 68 };
+  if (!data || data.length === 0) return null;
+  const values = data.map((d) => d.balance);
+  const min = Math.min(baseline, ...values);
+  const max = Math.max(baseline, ...values);
+  const range = max - min || 1;
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+  const n = data.length;
+  const xStep = n > 1 ? innerW / (n - 1) : 0;
+  const points = data.map((d, i) => {
+    const x = padding.left + i * xStep;
+    const y = padding.top + innerH - (d.balance - min) / range * innerH;
+    return [x, y];
+  });
+  const linePath = points.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const baseY = (padding.top + innerH).toFixed(1);
+  const areaPath = `${linePath} L${points[points.length - 1][0].toFixed(1)},${baseY} L${points[0][0].toFixed(1)},${baseY} Z`;
+  const baselineY = padding.top + innerH - (baseline - min) / range * innerH;
+  const labelEvery = Math.max(1, Math.ceil(n / 6));
+  return /* @__PURE__ */ React.createElement("svg", { viewBox: `0 0 ${width} ${height}`, style: { width: "100%", height: "auto", display: "block" }, preserveAspectRatio: "xMidYMid meet" }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "ttGoldFill", x1: "0", y1: "0", x2: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "0%", stopColor: "#D4A94D", stopOpacity: "0.35" }), /* @__PURE__ */ React.createElement("stop", { offset: "100%", stopColor: "#D4A94D", stopOpacity: "0" }))), [0, 0.25, 0.5, 0.75, 1].map((f, i) => {
+    const y = padding.top + innerH * f;
+    const val = max - range * f;
+    return /* @__PURE__ */ React.createElement("g", { key: i }, /* @__PURE__ */ React.createElement("line", { x1: padding.left, y1: y, x2: width - padding.right, y2: y, stroke: "#1D2740" }), /* @__PURE__ */ React.createElement("text", { x: padding.left - 8, y: y + 3, textAnchor: "end", fontSize: "9", fontFamily: "IBM Plex Mono", fill: "#7C8AA0" }, money(val)));
+  }), /* @__PURE__ */ React.createElement("line", { x1: padding.left, y1: baselineY, x2: width - padding.right, y2: baselineY, stroke: "#7C8AA0", strokeDasharray: "3 3" }), /* @__PURE__ */ React.createElement("path", { d: areaPath, fill: "url(#ttGoldFill)", stroke: "none" }), /* @__PURE__ */ React.createElement("path", { d: linePath, fill: "none", stroke: "#D4A94D", strokeWidth: "2" }), points.map(
+    (p, i) => i % labelEvery === 0 || i === points.length - 1 ? /* @__PURE__ */ React.createElement("text", { key: "lbl" + i, x: p[0], y: height - 6, textAnchor: "middle", fontSize: "9", fontFamily: "IBM Plex Mono", fill: "#7C8AA0" }, data[i].fecha) : null
+  ), points.map((p, i) => /* @__PURE__ */ React.createElement("circle", { key: "c" + i, cx: p[0], cy: p[1], r: "2.5", fill: "#0B1220", stroke: "#D4A94D", strokeWidth: "1.5" }, /* @__PURE__ */ React.createElement("title", null, `${data[i].fecha}: ${money(data[i].balance)}`))));
+}
+const CURRENCIES = { EUR: "EUR", USD: "USD" };
+const WEEKDAYS = ["Lunes", "Martes", "Mi\xE9rcoles", "Jueves", "Viernes", "S\xE1bado", "Domingo"];
+const TAX_BRACKETS = [
+  { upTo: 6e3, rate: 0.19 },
+  { upTo: 5e4, rate: 0.21 },
+  { upTo: 2e5, rate: 0.23 },
+  { upTo: 3e5, rate: 0.27 },
+  { upTo: Infinity, rate: 0.3 }
+];
+const EMPTY_FORM = {
+  fecha: todayISO(),
+  fechaEntrada: todayISO(),
+  hora: "",
+  usuarioId: "",
+  activo: "",
+  direccion: "larga",
+  estado: "cerrada",
+  entrada: "",
+  salida: "",
+  precioActual: "",
+  stopLoss: "",
+  takeProfit: "",
+  cantidad: "",
+  comision: "",
+  notas: ""
+};
+const EMPTY_MOVEMENT = { fecha: todayISO(), tipo: "aporte", monto: "", nota: "" };
+const EMPTY_USER = { nombre: "", rol: "estandar" };
+function todayISO() {
+  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+}
+function fmtMoney(n, currency) {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: currency || "EUR",
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(n) ? n : 0);
+}
+const fmtPct = (n) => `${n >= 0 ? "+" : ""}${(Number.isFinite(n) ? n : 0).toFixed(2)}%`;
+const fmtDate = (iso) => {
+  if (!iso) return "";
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
+};
+const startOfWeek = (d) => {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+const addMonths = (iso, n) => {
+  const d = /* @__PURE__ */ new Date(iso + "T00:00:00");
+  d.setMonth(d.getMonth() + n);
+  return d;
+};
+const isWithinTwoMonths = (fechaVentaISO, fechaOtraISO) => {
+  if (!fechaVentaISO || !fechaOtraISO) return false;
+  const other = /* @__PURE__ */ new Date(fechaOtraISO + "T00:00:00");
+  const lower = addMonths(fechaVentaISO, -2);
+  const upper = addMonths(fechaVentaISO, 2);
+  return other >= lower && other <= upper;
+};
+const calcTax = (base) => {
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  let remaining = base;
+  let tax = 0;
+  let lower = 0;
+  for (const b of TAX_BRACKETS) {
+    const chunk = Math.min(remaining, b.upTo - lower);
+    if (chunk > 0) {
+      tax += chunk * b.rate;
+      remaining -= chunk;
+    }
+    lower = b.upTo;
+    if (remaining <= 0) break;
+  }
+  return tax;
+};
+const calcPnl = (op) => {
+  if (op.estado === "abierta") return { neto: null, pct: null, unrealizedNeto: null, unrealizedPct: null };
+  const entrada = Number(op.entrada) || 0;
+  const salida = Number(op.salida) || 0;
+  const cantidad = Number(op.cantidad) || 0;
+  const comision = Number(op.comision) || 0;
+  const bruto = op.direccion === "corta" ? (entrada - salida) * cantidad : (salida - entrada) * cantidad;
+  const neto = bruto - comision;
+  const invertido = entrada * cantidad;
+  const pct = invertido !== 0 ? neto / invertido * 100 : 0;
+  return { neto, pct };
+};
+const calcUnrealized = (op) => {
+  if (op.estado !== "abierta" || op.precioActual === "" || op.precioActual == null) return null;
+  const entrada = Number(op.entrada) || 0;
+  const actual = Number(op.precioActual) || 0;
+  const cantidad = Number(op.cantidad) || 0;
+  const bruto = op.direccion === "corta" ? (entrada - actual) * cantidad : (actual - entrada) * cantidad;
+  const invertido = entrada * cantidad;
+  const pct = invertido !== 0 ? bruto / invertido * 100 : 0;
+  return { neto: bruto, pct };
+};
+const calcRiesgo = (op) => {
+  const entrada = Number(op.entrada) || 0;
+  const sl = Number(op.stopLoss) || 0;
+  const cantidad = Number(op.cantidad) || 0;
+  if (!op.stopLoss || !entrada || !cantidad) return null;
+  const riesgo = op.direccion === "corta" ? (sl - entrada) * cantidad : (entrada - sl) * cantidad;
+  return Math.abs(riesgo);
+};
+const calcRatioRB = (op) => {
+  const entrada = Number(op.entrada) || 0;
+  const sl = Number(op.stopLoss) || 0;
+  const tp = Number(op.takeProfit) || 0;
+  if (!op.stopLoss || !op.takeProfit || !entrada) return null;
+  const riesgo = Math.abs(op.direccion === "corta" ? sl - entrada : entrada - sl);
+  const beneficio = Math.abs(op.direccion === "corta" ? entrada - tp : tp - entrada);
+  if (riesgo === 0) return null;
+  return beneficio / riesgo;
+};
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function TradingTracker() {
+  var _a, _b, _c, _d, _e;
+  const [account, setAccount] = useState({
+    capitalInicial: 1e4,
+    currency: "EUR",
+    riskPerTrade: 2,
+    riskDaily: 5,
+    riskWeekly: 10
+  });
+  const [operations, setOperations] = useState([]);
+  const [movements, setMovements] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [storageOk, setStorageOk] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [filterUserId, setFilterUserId] = useState("__all__");
+  const [editingCapital, setEditingCapital] = useState(false);
+  const [capitalDraft, setCapitalDraft] = useState("10000");
+  const [sortKey, setSortKey] = useState("fecha");
+  const [sortDir, setSortDir] = useState("desc");
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("cuenta");
+  const [configDraft, setConfigDraft] = useState(account);
+  const [showMovementForm, setShowMovementForm] = useState(false);
+  const [movementForm, setMovementForm] = useState(EMPTY_MOVEMENT);
+  const [userForm, setUserForm] = useState(EMPTY_USER);
+  const [priceStatus, setPriceStatus] = useState({});
+  const [selectedTaxYear, setSelectedTaxYear] = useState((/* @__PURE__ */ new Date()).getFullYear());
+  const currency = account.currency || "EUR";
+  const money = (n) => fmtMoney(n, currency);
+  useEffect(() => {
+    (async () => {
+      var _a2, _b2;
+      try {
+        const keys = ["account-config", "operations-list", "liquidity-movements", "users-list", "current-user-id"];
+        const results = {};
+        for (const k of keys) {
+          try {
+            const r = await window.storage.get(k, false);
+            results[k] = r ? JSON.parse(r.value) : null;
+          } catch (e) {
+            results[k] = null;
+          }
+        }
+        let loadedUsers = results["users-list"] || [];
+        if (!loadedUsers.length) {
+          const admin = { id: uid(), nombre: "Administrador", rol: "admin" };
+          loadedUsers = [admin];
+          try {
+            await window.storage.set("users-list", JSON.stringify(loadedUsers), false);
+          } catch (e) {
+          }
+        }
+        setUsers(loadedUsers);
+        let curUser = results["current-user-id"];
+        if (!curUser || !loadedUsers.find((u) => u.id === curUser)) {
+          curUser = ((_a2 = loadedUsers.find((u) => u.rol === "admin")) == null ? void 0 : _a2.id) || loadedUsers[0].id;
+        }
+        setCurrentUserId(curUser);
+        if (results["account-config"]) {
+          setAccount((prev) => ({ ...prev, ...results["account-config"] }));
+          setCapitalDraft(String((_b2 = results["account-config"].capitalInicial) != null ? _b2 : 1e4));
+          setConfigDraft((prev) => ({ ...prev, ...results["account-config"] }));
+        }
+        if (results["operations-list"]) setOperations(results["operations-list"]);
+        if (results["liquidity-movements"]) setMovements(results["liquidity-movements"]);
+      } catch (e) {
+        setStorageOk(false);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+  const persist = useCallback(async (key, value) => {
+    try {
+      await window.storage.set(key, JSON.stringify(value), false);
+    } catch (e) {
+      setStorageOk(false);
+    }
+  }, []);
+  const currentUser = users.find((u) => u.id === currentUserId) || null;
+  const isAdmin = (currentUser == null ? void 0 : currentUser.rol) === "admin";
+  const saveCapital = () => {
+    const val = parseFloat(capitalDraft.replace(",", "."));
+    const next = { ...account, capitalInicial: Number.isFinite(val) ? val : 0 };
+    setAccount(next);
+    persist("account-config", next);
+    setEditingCapital(false);
+  };
+  const saveConfig = () => {
+    const next = {
+      ...account,
+      currency: configDraft.currency,
+      riskPerTrade: parseFloat(configDraft.riskPerTrade) || 0,
+      riskDaily: parseFloat(configDraft.riskDaily) || 0,
+      riskWeekly: parseFloat(configDraft.riskWeekly) || 0
+    };
+    setAccount(next);
+    persist("account-config", next);
+  };
+  const fetchLivePrice = async (activo, targetKey, onSuccess) => {
+    if (!activo) return;
+    setPriceStatus((s) => ({ ...s, [targetKey]: "loading" }));
+    try {
+      const symbol = activo.trim().toLowerCase();
+      const guess = symbol.includes(".") ? symbol : `${symbol}.us`;
+      const res = await fetch(`https://stooq.com/q/l/?s=${encodeURIComponent(guess)}&f=sd2t2ohlc&h&e=csv`);
+      if (!res.ok) throw new Error("network");
+      const text = await res.text();
+      const lines = text.trim().split("\n");
+      if (lines.length < 2) throw new Error("empty");
+      const cols = lines[1].split(",");
+      const close = parseFloat(cols[6]);
+      if (!Number.isFinite(close) || close <= 0) throw new Error("parse");
+      onSuccess(close);
+      setPriceStatus((s) => ({ ...s, [targetKey]: "ok" }));
+    } catch (e) {
+      setPriceStatus((s) => ({ ...s, [targetKey]: "error" }));
+    }
+  };
+  const resetForm = () => {
+    setForm({ ...EMPTY_FORM, usuarioId: currentUserId || "" });
+    setEditingId(null);
+  };
+  const submitForm = (e) => {
+    e.preventDefault();
+    if (!form.activo || form.entrada === "" || form.cantidad === "") return;
+    if (form.estado === "cerrada" && form.salida === "") return;
+    const payload = form.estado === "abierta" ? { ...form, fecha: form.fechaEntrada } : form;
+    let next;
+    if (editingId) {
+      next = operations.map((o) => o.id === editingId ? { ...payload, id: editingId } : o);
+    } else {
+      next = [...operations, { ...payload, id: uid() }];
+    }
+    setOperations(next);
+    persist("operations-list", next);
+    resetForm();
+    setShowForm(false);
+  };
+  const editOp = (op) => {
+    setForm({ ...EMPTY_FORM, ...op, fechaEntrada: op.fechaEntrada || op.fecha || todayISO() });
+    setEditingId(op.id);
+    setShowForm(true);
+  };
+  const deleteOp = (id) => {
+    const next = operations.filter((o) => o.id !== id);
+    setOperations(next);
+    persist("operations-list", next);
+  };
+  const updateOpLivePrice = (op) => {
+    fetchLivePrice(op.activo, op.id, (precio) => {
+      const next = operations.map((o) => o.id === op.id ? { ...o, precioActual: String(precio) } : o);
+      setOperations(next);
+      persist("operations-list", next);
+    });
+  };
+  const submitMovement = (e) => {
+    e.preventDefault();
+    const monto = parseFloat(String(movementForm.monto).replace(",", "."));
+    if (!Number.isFinite(monto) || monto <= 0) return;
+    const next = [...movements, { ...movementForm, monto, id: uid() }];
+    setMovements(next);
+    persist("liquidity-movements", next);
+    setMovementForm(EMPTY_MOVEMENT);
+    setShowMovementForm(false);
+  };
+  const deleteMovement = (id) => {
+    const next = movements.filter((m) => m.id !== id);
+    setMovements(next);
+    persist("liquidity-movements", next);
+  };
+  const addUser = (e) => {
+    e.preventDefault();
+    if (!userForm.nombre.trim()) return;
+    const next = [...users, { id: uid(), nombre: userForm.nombre.trim(), rol: userForm.rol }];
+    setUsers(next);
+    persist("users-list", next);
+    setUserForm(EMPTY_USER);
+  };
+  const changeUserRole = (id, rol) => {
+    const admins = users.filter((u) => u.rol === "admin");
+    if (rol === "estandar" && admins.length === 1 && admins[0].id === id) return;
+    const next = users.map((u) => u.id === id ? { ...u, rol } : u);
+    setUsers(next);
+    persist("users-list", next);
+  };
+  const deleteUser = (id) => {
+    const admins = users.filter((u) => u.rol === "admin");
+    const target = users.find((u) => u.id === id);
+    if ((target == null ? void 0 : target.rol) === "admin" && admins.length === 1) return;
+    const next = users.filter((u) => u.id !== id);
+    setUsers(next);
+    persist("users-list", next);
+    if (currentUserId === id) {
+      const fallback = next.find((u) => u.rol === "admin") || next[0];
+      setCurrentUserId((fallback == null ? void 0 : fallback.id) || null);
+      persist("current-user-id", (fallback == null ? void 0 : fallback.id) || null);
+    }
+  };
+  const switchUser = (id) => {
+    setCurrentUserId(id);
+    persist("current-user-id", id);
+  };
+  const filteredOps = useMemo(() => {
+    if (filterUserId === "__all__") return operations;
+    return operations.filter((o) => o.usuarioId === filterUserId);
+  }, [operations, filterUserId]);
+  const opsWithPnl = useMemo(() => filteredOps.map((o) => ({ ...o, ...calcPnl(o) })), [filteredOps]);
+  const allOpsWithPnl = useMemo(() => operations.map((o) => ({ ...o, ...calcPnl(o) })), [operations]);
+  const closedOps = useMemo(() => opsWithPnl.filter((o) => o.estado !== "abierta"), [opsWithPnl]);
+  const openOps = useMemo(() => opsWithPnl.filter((o) => o.estado === "abierta"), [opsWithPnl]);
+  const allClosedOps = useMemo(() => allOpsWithPnl.filter((o) => o.estado !== "abierta"), [allOpsWithPnl]);
+  const allOpenOps = useMemo(() => allOpsWithPnl.filter((o) => o.estado === "abierta"), [allOpsWithPnl]);
+  const totalPnl = useMemo(() => allClosedOps.reduce((s, o) => s + o.neto, 0), [allClosedOps]);
+  const totalMovements = useMemo(
+    () => movements.reduce((s, m) => s + (m.tipo === "aporte" ? m.monto : -m.monto), 0),
+    [movements]
+  );
+  const capitalTotal = account.capitalInicial + totalMovements + totalPnl;
+  const invertidoActual = useMemo(
+    () => allOpenOps.reduce((s, o) => s + (Number(o.entrada) || 0) * (Number(o.cantidad) || 0), 0),
+    [allOpenOps]
+  );
+  const liquidezDisponible = capitalTotal - invertidoActual;
+  const pctLiquidez = capitalTotal !== 0 ? liquidezDisponible / capitalTotal * 100 : 0;
+  const pctInvertido = capitalTotal !== 0 ? invertidoActual / capitalTotal * 100 : 0;
+  const periodStats = useMemo(() => {
+    const now = /* @__PURE__ */ new Date();
+    const todayStr = todayISO();
+    const weekStart = startOfWeek(now);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    const sums = { dia: 0, semana: 0, mes: 0, anio: 0 };
+    closedOps.forEach((o) => {
+      if (!o.fecha) return;
+      const d = /* @__PURE__ */ new Date(o.fecha + "T00:00:00");
+      if (o.fecha === todayStr) sums.dia += o.neto;
+      if (d >= weekStart) sums.semana += o.neto;
+      if (d >= monthStart) sums.mes += o.neto;
+      if (d >= yearStart) sums.anio += o.neto;
+    });
+    return sums;
+  }, [closedOps]);
+  const generalStats = useMemo(() => {
+    const n = closedOps.length;
+    const ganadoras = closedOps.filter((o) => o.neto > 0);
+    const perdedoras = closedOps.filter((o) => o.neto < 0);
+    const gananciaTotal = closedOps.reduce((s, o) => s + o.neto, 0);
+    const sumGanadoras = ganadoras.reduce((s, o) => s + o.neto, 0);
+    const sumPerdedoras = Math.abs(perdedoras.reduce((s, o) => s + o.neto, 0));
+    const winRate = n ? ganadoras.length / n * 100 : 0;
+    const profitFactor = sumPerdedoras > 0 ? sumGanadoras / sumPerdedoras : ganadoras.length ? Infinity : 0;
+    const avgWin = ganadoras.length ? sumGanadoras / ganadoras.length : 0;
+    const avgLoss = perdedoras.length ? sumPerdedoras / perdedoras.length : 0;
+    const mejor = n ? closedOps.reduce((a, b) => b.neto > a.neto ? b : a) : null;
+    const peor = n ? closedOps.reduce((a, b) => b.neto < a.neto ? b : a) : null;
+    const media = n ? gananciaTotal / n : 0;
+    return { n, winRate, profitFactor, avgWin, avgLoss, mejor, peor, media, gananciaTotal };
+  }, [closedOps]);
+  const timeline = useMemo(() => {
+    const evs = [];
+    (filterUserId === "__all__" ? movements : movements).forEach((m) => {
+      evs.push({ fecha: m.fecha, hora: "00:00", delta: m.tipo === "aporte" ? m.monto : -m.monto, kind: "movimiento" });
+    });
+    (filterUserId === "__all__" ? allClosedOps : closedOps).forEach((o) => {
+      evs.push({ fecha: o.fecha, hora: o.hora || "12:00", delta: o.neto, kind: "operacion", activo: o.activo });
+    });
+    evs.sort((a, b) => a.fecha + a.hora > b.fecha + b.hora ? 1 : -1);
+    return evs;
+  }, [movements, allClosedOps, closedOps, filterUserId]);
+  const equityCurve = useMemo(() => {
+    let running = account.capitalInicial;
+    const points = [{ fecha: "Inicio", balance: running }];
+    timeline.forEach((e) => {
+      running += e.delta;
+      points.push({ fecha: fmtDate(e.fecha), balance: running });
+    });
+    return points;
+  }, [timeline, account.capitalInicial]);
+  const advancedStats = useMemo(() => {
+    let peak = account.capitalInicial;
+    let running = account.capitalInicial;
+    let maxDD = 0;
+    timeline.forEach((e) => {
+      running += e.delta;
+      if (running > peak) peak = running;
+      const dd = peak > 0 ? (peak - running) / peak * 100 : 0;
+      if (dd > maxDD) maxDD = dd;
+    });
+    const sortedClosed = [...closedOps].sort((a, b) => a.fecha + (a.hora || "") > b.fecha + (b.hora || "") ? 1 : -1);
+    let curWin = 0, curLoss = 0, maxWin = 0, maxLoss = 0;
+    sortedClosed.forEach((o) => {
+      if (o.neto > 0) {
+        curWin += 1;
+        curLoss = 0;
+      } else if (o.neto < 0) {
+        curLoss += 1;
+        curWin = 0;
+      } else {
+        curWin = 0;
+        curLoss = 0;
+      }
+      if (curWin > maxWin) maxWin = curWin;
+      if (curLoss > maxLoss) maxLoss = curLoss;
+    });
+    const withRisk = closedOps.map((o) => ({ ...o, riesgo: calcRiesgo(o) })).filter((o) => o.riesgo && o.riesgo > 0);
+    const expectancyR = withRisk.length ? withRisk.reduce((s, o) => s + o.neto / o.riesgo, 0) / withRisk.length : null;
+    const weekdayMap = {};
+    closedOps.forEach((o) => {
+      if (!o.fecha) return;
+      const d = /* @__PURE__ */ new Date(o.fecha + "T00:00:00");
+      const idx = (d.getDay() + 6) % 7;
+      const label = WEEKDAYS[idx];
+      weekdayMap[label] = (weekdayMap[label] || 0) + o.neto;
+    });
+    const byWeekday = WEEKDAYS.map((label) => ({ label, pnl: weekdayMap[label] || 0 })).filter(
+      (w) => weekdayMap[w.label] !== void 0
+    );
+    const hourMap = {};
+    let anyHour = false;
+    closedOps.forEach((o) => {
+      if (!o.hora) return;
+      anyHour = true;
+      const h = o.hora.split(":")[0] + ":00";
+      hourMap[h] = (hourMap[h] || 0) + o.neto;
+    });
+    const byHour = Object.entries(hourMap).map(([label, pnl]) => ({ label, pnl })).sort((a, b) => a.label > b.label ? 1 : -1);
+    return { maxDD, maxWin, maxLoss, expectancyR, byWeekday, byHour, anyHour };
+  }, [timeline, closedOps, account.capitalInicial]);
+  const riskUsage = useMemo(() => {
+    const now = /* @__PURE__ */ new Date();
+    const todayStr = todayISO();
+    const weekStart = startOfWeek(now);
+    let dia = 0, semana = 0;
+    operations.forEach((o) => {
+      const riesgo = calcRiesgo(o);
+      if (!riesgo || !o.fecha) return;
+      const pctRiesgo = capitalTotal > 0 ? riesgo / capitalTotal * 100 : 0;
+      if (o.fecha === todayStr) dia += pctRiesgo;
+      const d = /* @__PURE__ */ new Date(o.fecha + "T00:00:00");
+      if (d >= weekStart) semana += pctRiesgo;
+    });
+    return { dia, semana };
+  }, [operations, capitalTotal]);
+  const bySymbol = useMemo(() => {
+    const map = {};
+    closedOps.forEach((o) => {
+      if (!o.activo) return;
+      map[o.activo] = (map[o.activo] || 0) + o.neto;
+    });
+    return Object.entries(map).map(([activo, pnl]) => ({ activo, pnl })).sort((a, b) => b.pnl - a.pnl);
+  }, [closedOps]);
+  const taxData = useMemo(() => {
+    const closed = closedOps.filter((o) => o.fecha);
+    const withTaxInfo = closed.map((o) => {
+      if (o.neto >= 0) return { ...o, computable: true, diferida: false };
+      const repurchased = filteredOps.some(
+        (other) => other.id !== o.id && other.activo === o.activo && other.fechaEntrada && isWithinTwoMonths(o.fecha, other.fechaEntrada)
+      );
+      return { ...o, computable: !repurchased, diferida: repurchased };
+    });
+    const years = {};
+    withTaxInfo.forEach((o) => {
+      const y = (/* @__PURE__ */ new Date(o.fecha + "T00:00:00")).getFullYear();
+      if (!years[y]) years[y] = { gains: 0, losses: 0, diferidas: 0, ops: [] };
+      if (o.computable) {
+        if (o.neto >= 0) years[y].gains += o.neto;
+        else years[y].losses += Math.abs(o.neto);
+      } else {
+        years[y].diferidas += Math.abs(o.neto);
+      }
+      years[y].ops.push(o);
+    });
+    const allYears = Object.keys(years).map(Number).sort((a, b) => a - b);
+    let carry = [];
+    let selectedResult = null;
+    allYears.filter((y) => y <= selectedTaxYear).forEach((y) => {
+      const yd = years[y];
+      const rawNet = yd.gains - yd.losses;
+      carry = carry.filter((c) => y - c.year <= 4);
+      const carryBefore = carry.reduce((s, c) => s + c.amount, 0);
+      let taxableBase = 0;
+      let compensado = 0;
+      if (rawNet < 0) {
+        carry.push({ year: y, amount: -rawNet });
+      } else if (rawNet > 0) {
+        carry.sort((a, b) => a.year - b.year);
+        let remaining = rawNet;
+        for (const c of carry) {
+          if (remaining <= 0) break;
+          const use = Math.min(c.amount, remaining);
+          c.amount -= use;
+          remaining -= use;
+          compensado += use;
+        }
+        carry = carry.filter((c) => c.amount > 1e-3);
+        taxableBase = remaining;
+      }
+      if (y === selectedTaxYear) {
+        selectedResult = {
+          year: y,
+          gains: yd.gains,
+          losses: yd.losses,
+          diferidas: yd.diferidas,
+          rawNet,
+          carryBefore,
+          compensado,
+          taxableBase,
+          ops: yd.ops,
+          cuota: calcTax(taxableBase)
+        };
+      }
+    });
+    if (!selectedResult) {
+      selectedResult = {
+        year: selectedTaxYear,
+        gains: 0,
+        losses: 0,
+        diferidas: 0,
+        rawNet: 0,
+        carryBefore: 0,
+        compensado: 0,
+        taxableBase: 0,
+        ops: [],
+        cuota: 0
+      };
+    }
+    return { ...selectedResult, pendingCarryAfter: carry, availableYears: allYears };
+  }, [closedOps, filteredOps, selectedTaxYear]);
+  const byUser = useMemo(() => {
+    const map = {};
+    allClosedOps.forEach((o) => {
+      const u = users.find((u2) => u2.id === o.usuarioId);
+      const key = u ? u.nombre : "Sin asignar";
+      map[key] = (map[key] || 0) + o.neto;
+    });
+    return Object.entries(map).map(([persona, pnl]) => ({ persona, pnl })).sort((a, b) => b.pnl - a.pnl);
+  }, [allClosedOps, users]);
+  const sortedTable = useMemo(() => {
+    const arr = [...opsWithPnl];
+    arr.sort((a, b) => {
+      let av = a[sortKey];
+      let bv = b[sortKey];
+      if (["neto", "pct", "entrada", "salida", "cantidad"].includes(sortKey)) {
+        av = Number(av) || 0;
+        bv = Number(bv) || 0;
+      }
+      if (av == null) av = "";
+      if (bv == null) bv = "";
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return arr;
+  }, [opsWithPnl, sortKey, sortDir]);
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+  const ticker = useMemo(() => [...allClosedOps].sort((a, b) => a.fecha > b.fecha ? 1 : -1).slice(-40), [allClosedOps]);
+  const formPreview = useMemo(() => {
+    const riesgo = calcRiesgo(form);
+    const ratioRB = calcRatioRB(form);
+    const tamano = (Number(form.entrada) || 0) * (Number(form.cantidad) || 0);
+    const pctTamano = capitalTotal > 0 ? tamano / capitalTotal * 100 : 0;
+    const pctRiesgo = riesgo && capitalTotal > 0 ? riesgo / capitalTotal * 100 : null;
+    const pnl = form.estado === "cerrada" && form.entrada !== "" && form.salida !== "" && form.cantidad !== "" ? calcPnl(form) : null;
+    return { riesgo, ratioRB, tamano, pctTamano, pctRiesgo, pnl };
+  }, [form, capitalTotal]);
+  if (loading) {
+    return /* @__PURE__ */ React.createElement("div", { style: { ...rootStyle, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400 } }, /* @__PURE__ */ React.createElement("div", { style: { color: "var(--muted)", fontFamily: "var(--font-mono)" } }, "Cargando diario de trading\u2026"));
+  }
+  return /* @__PURE__ */ React.createElement("div", { style: rootStyle }, /* @__PURE__ */ React.createElement(GlobalStyle, null), !storageOk && /* @__PURE__ */ React.createElement("div", { style: warnBannerStyle }, "No se ha podido conectar con el almacenamiento. Los cambios podr\xEDan no guardarse entre sesiones."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: eyebrowStyle }, "Diario de trading"), /* @__PURE__ */ React.createElement("h1", { style: { fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, margin: 0, color: "var(--text)" } }, "Cartera")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, /* @__PURE__ */ React.createElement(UserSwitcher, { users, currentUserId, onSwitch: switchUser }), isAdmin && /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-ghost", onClick: () => setShowSettings((s) => !s), title: "Configuraci\xF3n" }, /* @__PURE__ */ React.createElement(SettingsIcon, { size: 15 })))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: "16px 18px" } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "Capital total"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-mono)", fontSize: 28, fontWeight: 600, color: totalPnl >= 0 ? "var(--gold)" : "var(--rose)" } }, money(capitalTotal)), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--muted)" } }, totalPnl >= 0 ? "+" : "", money(totalPnl), " en operaciones cerradas")), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: "16px 18px" } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "Liquidez vs invertido"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", height: 10, borderRadius: 5, overflow: "hidden", margin: "8px 0 6px" } }, /* @__PURE__ */ React.createElement("div", { style: { width: `${pctLiquidez}%`, background: "var(--gold)" } }), /* @__PURE__ */ React.createElement("div", { style: { width: `${pctInvertido}%`, background: "var(--rose)" } })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: "var(--font-mono)", fontSize: 12 } }, /* @__PURE__ */ React.createElement("span", { style: { color: "var(--gold)" } }, pctLiquidez.toFixed(1), "% liquidez"), /* @__PURE__ */ React.createElement("span", { style: { color: "var(--rose)" } }, pctInvertido.toFixed(1), "% invertido"))), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: "16px 18px" } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "Capital inicial"), editingCapital ? /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 4 } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "tt-input",
+      style: { width: 120, fontFamily: "var(--font-mono)" },
+      value: capitalDraft,
+      onChange: (e) => setCapitalDraft(e.target.value),
+      autoFocus: true,
+      onKeyDown: (e) => e.key === "Enter" && saveCapital()
+    }
+  ), /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-gold", onClick: saveCapital }, "OK")) : /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      onClick: () => isAdmin && setEditingCapital(true),
+      style: {
+        fontFamily: "var(--font-mono)",
+        fontSize: 20,
+        color: "var(--text)",
+        cursor: isAdmin ? "pointer" : "default",
+        borderBottom: isAdmin ? "1px dashed var(--muted)" : "none",
+        display: "inline-block"
+      },
+      title: isAdmin ? "Haz clic para editar" : ""
+    },
+    money(account.capitalInicial)
+  ), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--muted)", marginTop: 4 } }, totalMovements >= 0 ? "+" : "", money(totalMovements), " en aportes/retiros"))), /* @__PURE__ */ React.createElement("div", { className: "tt-scrollbar", style: { display: "flex", gap: 3, overflowX: "auto", paddingBottom: 8, marginBottom: 24, borderBottom: "1px solid var(--border)" } }, ticker.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)", padding: "6px 0" } }, "Todav\xEDa no hay operaciones cerradas \u2014 la cinta se ir\xE1 llenando con cada cierre."), ticker.map((o) => {
+    var _a2;
+    return /* @__PURE__ */ React.createElement(
+      "div",
+      {
+        key: o.id,
+        title: `${o.activo} \xB7 ${fmtDate(o.fecha)} \xB7 ${money(o.neto)}`,
+        style: {
+          flex: "0 0 auto",
+          minWidth: 34,
+          height: 34,
+          borderRadius: 5,
+          background: o.neto >= 0 ? "rgba(212,169,77,0.14)" : "rgba(225,89,90,0.14)",
+          border: `1px solid ${o.neto >= 0 ? "rgba(212,169,77,0.4)" : "rgba(225,89,90,0.4)"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--font-mono)",
+          fontSize: 10,
+          color: o.neto >= 0 ? "var(--gold)" : "var(--rose)",
+          padding: "0 6px",
+          whiteSpace: "nowrap"
+        }
+      },
+      ((_a2 = o.activo) == null ? void 0 : _a2.slice(0, 4)) || "\u2014"
+    );
+  })), showSettings && isAdmin && /* @__PURE__ */ React.createElement(
+    SettingsPanel,
+    {
+      configDraft,
+      setConfigDraft,
+      saveConfig,
+      users,
+      userForm,
+      setUserForm,
+      addUser,
+      changeUserRole,
+      deleteUser,
+      currentUserId,
+      movements,
+      showMovementForm,
+      setShowMovementForm,
+      movementForm,
+      setMovementForm,
+      submitMovement,
+      deleteMovement,
+      settingsTab,
+      setSettingsTab,
+      onClose: () => setShowSettings(false),
+      money
+    }
+  ), users.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "Filtrar por usuario"), /* @__PURE__ */ React.createElement("div", { style: { position: "relative", display: "inline-block" } }, /* @__PURE__ */ React.createElement("select", { className: "tt-input", style: { paddingRight: 28, appearance: "none" }, value: filterUserId, onChange: (e) => setFilterUserId(e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "__all__" }, "Todos"), users.map((u) => /* @__PURE__ */ React.createElement("option", { key: u.id, value: u.id }, u.nombre))), /* @__PURE__ */ React.createElement(ChevronDown, { size: 14, style: { position: "absolute", right: 8, top: 10, color: "var(--muted)", pointerEvents: "none" } }))), /* @__PURE__ */ React.createElement(SectionTitle, null, "Rendimiento por periodo"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 20 } }, [
+    ["Hoy", periodStats.dia],
+    ["Esta semana", periodStats.semana],
+    ["Este mes", periodStats.mes],
+    ["Este a\xF1o", periodStats.anio]
+  ].map(([label, val]) => /* @__PURE__ */ React.createElement(StatCard, { key: label, label, value: money(val), positive: val >= 0, icon: val >= 0 ? TrendingUp : TrendingDown }))), /* @__PURE__ */ React.createElement(SectionTitle, null, "Estad\xEDsticas generales"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 20 } }, /* @__PURE__ */ React.createElement(StatCard, { label: "Ganancia total", value: money(generalStats.gananciaTotal), positive: generalStats.gananciaTotal >= 0, plain: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "N\xBA operaciones cerradas", value: String(generalStats.n), plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Operaciones abiertas", value: String(openOps.length), plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Win rate", value: `${generalStats.winRate.toFixed(1)}%`, plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Profit factor", value: generalStats.profitFactor === Infinity ? "\u221E" : generalStats.profitFactor.toFixed(2), plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Ganancia media", value: money(generalStats.media), positive: generalStats.media >= 0, plain: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Ganancia media (ganadoras)", value: money(generalStats.avgWin), plain: true, positive: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "P\xE9rdida media (perdedoras)", value: money(-generalStats.avgLoss), plain: true, positive: false }), /* @__PURE__ */ React.createElement(StatCard, { label: "Mejor operaci\xF3n", value: generalStats.mejor ? money(generalStats.mejor.neto) : "\u2014", sub: (_a = generalStats.mejor) == null ? void 0 : _a.activo, plain: true, positive: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Peor operaci\xF3n", value: generalStats.peor ? money(generalStats.peor.neto) : "\u2014", sub: (_b = generalStats.peor) == null ? void 0 : _b.activo, plain: true, positive: false })), /* @__PURE__ */ React.createElement(SectionTitle, null, "Estad\xEDsticas avanzadas"), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 } }, /* @__PURE__ */ React.createElement(StatCard, { label: "Drawdown m\xE1ximo", value: `-${advancedStats.maxDD.toFixed(1)}%`, plain: true, positive: false }), /* @__PURE__ */ React.createElement(StatCard, { label: "Racha m\xE1x. victorias", value: String(advancedStats.maxWin), plain: true, positive: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Racha m\xE1x. derrotas", value: String(advancedStats.maxLoss), plain: true, positive: false }), /* @__PURE__ */ React.createElement(
+    StatCard,
+    {
+      label: "Expectativa (en R)",
+      value: advancedStats.expectancyR == null ? "Sin datos de riesgo" : `${advancedStats.expectancyR >= 0 ? "+" : ""}${advancedStats.expectancyR.toFixed(2)}R`,
+      plain: true,
+      positive: advancedStats.expectancyR == null ? void 0 : advancedStats.expectancyR >= 0,
+      neutral: advancedStats.expectancyR == null
+    }
+  )), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: 16, marginBottom: 28 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 } }, /* @__PURE__ */ React.createElement(ShieldAlert, { size: 15, color: "var(--muted)" }), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600 } }, "Uso del riesgo vs l\xEDmites configurados")), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 } }, /* @__PURE__ */ React.createElement(RiskBar, { label: "Riesgo arriesgado hoy", used: riskUsage.dia, limit: account.riskPerTrade > 0 ? account.riskDaily : 0 }), /* @__PURE__ */ React.createElement(RiskBar, { label: "Riesgo arriesgado esta semana", used: riskUsage.semana, limit: account.riskWeekly })), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)", marginTop: 10 } }, "Calculado sobre operaciones con stop loss definido. L\xEDmites configurables en Ajustes \u2192 Cuenta.")), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, marginBottom: 28, padding: "20px 12px 8px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { padding: "0 20px", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 600 } }, "Curva de capital"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)" } }, "Incluye operaciones cerradas y aportes/retiros")), /* @__PURE__ */ React.createElement("div", { style: { width: "100%" } }, /* @__PURE__ */ React.createElement(EquityChart, { data: equityCurve, baseline: account.capitalInicial, money }))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 } }, /* @__PURE__ */ React.createElement(BreakdownCard, { title: "Por activo", rows: bySymbol, labelKey: "activo", money }), /* @__PURE__ */ React.createElement(BreakdownCard, { title: "Por usuario", rows: byUser, labelKey: "persona", money })), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: advancedStats.anyHour ? "1fr 1fr" : "1fr", gap: 16, marginBottom: 28 } }, /* @__PURE__ */ React.createElement(BreakdownCard, { title: "Por d\xEDa de la semana", rows: advancedStats.byWeekday, labelKey: "label", money }), advancedStats.anyHour && /* @__PURE__ */ React.createElement(BreakdownCard, { title: "Por hora del d\xEDa", rows: advancedStats.byHour, labelKey: "label", money })), /* @__PURE__ */ React.createElement(SectionTitle, null, "Fiscalidad (IRPF Espa\xF1a / Canarias) \xB7 estimaci\xF3n"), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: 20, marginBottom: 28 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement(FileText, { size: 16, color: "var(--muted)" }), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-body)", fontSize: 13, color: "var(--muted)" } }, "C\xE1lculo por ", filterUserId === "__all__" ? "todos los usuarios (agrupado)" : (_c = users.find((u) => u.id === filterUserId)) == null ? void 0 : _c.nombre, " \xB7 la declaraci\xF3n de IRPF es individual, as\xED que si hay varias personas conviene filtrar por usuario.")), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("select", { className: "tt-input", style: { width: "auto" }, value: selectedTaxYear, onChange: (e) => setSelectedTaxYear(Number(e.target.value)) }, (taxData.availableYears.length ? taxData.availableYears : [(/* @__PURE__ */ new Date()).getFullYear()]).map((y) => /* @__PURE__ */ React.createElement("option", { key: y, value: y }, y)), !taxData.availableYears.includes((/* @__PURE__ */ new Date()).getFullYear()) && /* @__PURE__ */ React.createElement("option", { value: (/* @__PURE__ */ new Date()).getFullYear() }, (/* @__PURE__ */ new Date()).getFullYear())))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(StatCard, { label: "Ganancias del a\xF1o", value: money(taxData.gains), plain: true, positive: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "P\xE9rdidas computables", value: money(-taxData.losses), plain: true, positive: false }), /* @__PURE__ */ React.createElement(StatCard, { label: "P\xE9rdidas diferidas (regla 2 meses)", value: money(-taxData.diferidas), plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Saldo neto del ejercicio", value: money(taxData.rawNet), positive: taxData.rawNet >= 0, plain: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Compensado con p\xE9rdidas de otros a\xF1os", value: money(-taxData.compensado), plain: true, neutral: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Base imponible del ahorro", value: money(taxData.taxableBase), positive: true, plain: true }), /* @__PURE__ */ React.createElement(StatCard, { label: "Cuota estimada a pagar", value: money(taxData.cuota), plain: true, positive: false })), taxData.pendingCarryAfter.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "P\xE9rdidas pendientes de compensar (arrastre a 4 a\xF1os)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4 } }, taxData.pendingCarryAfter.map((c) => /* @__PURE__ */ React.createElement("div", { key: c.year, style: { fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--rose)" } }, money(c.amount), " generadas en ", c.year, " \xB7 caducan si no se compensan antes de ", c.year + 4)))), taxData.diferidas > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start", background: "rgba(212,169,77,0.1)", border: "1px solid rgba(212,169,77,0.3)", borderRadius: 8, padding: 10, marginBottom: 14 } }, /* @__PURE__ */ React.createElement(AlertTriangle, { size: 14, color: "var(--gold)", style: { marginTop: 2, flexShrink: 0 } }), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text)" } }, "Hay ", money(taxData.diferidas), ' en p\xE9rdidas afectadas por la regla de los 2 meses (recompra del mismo activo dentro de los 2 meses anteriores o posteriores a la venta). No se pueden deducir este a\xF1o; quedan "aparcadas" hasta que vendas definitivamente esas acciones sin recompra en la ventana. Este tracker las se\xF1ala pero no reintegra el importe autom\xE1ticamente en a\xF1os futuros \u2014 ll\xE9valo aparte o cons\xFAltalo con tu asesor.')), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "tt-label" }, "Documentaci\xF3n por operaci\xF3n (", taxData.year, ")"), taxData.ops.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)" } }, "Sin operaciones cerradas en este a\xF1o.") : /* @__PURE__ */ React.createElement("div", { className: "tt-scrollbar", style: { overflowX: "auto" } }, /* @__PURE__ */ React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 700 } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, ["Activo", "F. compra", "F. venta", "Valor adquisici\xF3n", "Valor transmisi\xF3n", "Resultado", "Regla 2 meses"].map((h) => /* @__PURE__ */ React.createElement("th", { key: h, style: { ...thBaseStyle, padding: "6px 10px" } }, h)))), /* @__PURE__ */ React.createElement("tbody", null, taxData.ops.map((o) => /* @__PURE__ */ React.createElement("tr", { key: o.id, style: { borderBottom: "1px solid var(--border)" } }, /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px", fontFamily: "var(--font-mono)" } }, o.activo), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px" } }, fmtDate(o.fechaEntrada || o.fecha)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px" } }, fmtDate(o.fecha)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px", fontFamily: "var(--font-mono)" } }, money((Number(o.entrada) || 0) * (Number(o.cantidad) || 0))), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px", fontFamily: "var(--font-mono)" } }, money((Number(o.salida) || 0) * (Number(o.cantidad) || 0))), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px", fontFamily: "var(--font-mono)", color: o.neto >= 0 ? "var(--gold)" : "var(--rose)" } }, money(o.neto)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, padding: "6px 10px" } }, o.diferida ? /* @__PURE__ */ React.createElement(Badge, { color: "var(--gold)", bg: "rgba(212,169,77,0.15)" }, "Diferida") : /* @__PURE__ */ React.createElement("span", { style: { color: "var(--muted)", fontSize: 12 } }, "\u2014")))))))), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)", marginTop: 14, lineHeight: 1.5 } }, "Esto es una estimaci\xF3n educativa, no asesoramiento fiscal. Usa la escala estatal del ahorro vigente para el ejercicio 2025 (declaraci\xF3n 2026): 19% hasta 6.000\u20AC, 21% hasta 50.000\u20AC, 23% hasta 200.000\u20AC, 27% hasta 300.000\u20AC y 30% en adelante. Esta escala es \xFAnica para toda Espa\xF1a \u2014 en Canarias tributa igual que en el resto del pa\xEDs para plusval\xEDas de bolsa (donde s\xED hay diferencias es en otros impuestos como el IGIC, que no afecta a esta actividad). Asume que los activos cotizan en mercados regulados (regla de los 2 meses); si operas valores no cotizados el plazo legal es de 1 a\xF1o, no 2 meses. No calcula la compensaci\xF3n cruzada del 25% con dividendos/intereses ni dividendos en s\xED. Verifica siempre con un asesor fiscal antes de presentar la declaraci\xF3n.")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600 } }, "Operaciones ", filterUserId !== "__all__" ? `\xB7 ${(_d = users.find((u) => u.id === filterUserId)) == null ? void 0 : _d.nombre}` : ""), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "tt-btn tt-btn-gold",
+      onClick: () => {
+        resetForm();
+        setShowForm((s) => !s);
+      }
+    },
+    showForm ? /* @__PURE__ */ React.createElement(X, { size: 15 }) : /* @__PURE__ */ React.createElement(Plus, { size: 15 }),
+    showForm ? "Cancelar" : "Nueva operaci\xF3n"
+  )), showForm && /* @__PURE__ */ React.createElement("form", { onSubmit: submitForm, style: { ...cardStyle, padding: 20, marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Fecha de compra"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "date", value: form.fechaEntrada, onChange: (e) => setForm({ ...form, fechaEntrada: e.target.value }), required: true })), form.estado === "cerrada" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Fecha de venta"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "date", value: form.fecha, onChange: (e) => setForm({ ...form, fecha: e.target.value }), required: true })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Hora de cierre (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "time", value: form.hora, onChange: (e) => setForm({ ...form, hora: e.target.value }) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Activo"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", placeholder: "AAPL, BTC\u2026", value: form.activo, onChange: (e) => setForm({ ...form, activo: e.target.value }), required: true })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Usuario"), /* @__PURE__ */ React.createElement("select", { className: "tt-input", value: form.usuarioId, onChange: (e) => setForm({ ...form, usuarioId: e.target.value }) }, /* @__PURE__ */ React.createElement("option", { value: "" }, "Sin asignar"), users.map((u) => /* @__PURE__ */ React.createElement("option", { key: u.id, value: u.id }, u.nombre)))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Direcci\xF3n"), /* @__PURE__ */ React.createElement("select", { className: "tt-input", value: form.direccion, onChange: (e) => setForm({ ...form, direccion: e.target.value }) }, /* @__PURE__ */ React.createElement("option", { value: "larga" }, "Larga (compra)"), /* @__PURE__ */ React.createElement("option", { value: "corta" }, "Corta (venta)"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Estado"), /* @__PURE__ */ React.createElement("select", { className: "tt-input", value: form.estado, onChange: (e) => setForm({ ...form, estado: e.target.value }) }, /* @__PURE__ */ React.createElement("option", { value: "cerrada" }, "Cerrada"), /* @__PURE__ */ React.createElement("option", { value: "abierta" }, "Abierta")))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Precio entrada"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.entrada, onChange: (e) => setForm({ ...form, entrada: e.target.value }), required: true })), form.estado === "cerrada" ? /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Precio salida"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.salida, onChange: (e) => setForm({ ...form, salida: e.target.value }), required: true })) : /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Precio actual (opcional)"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6 } }, /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.precioActual, onChange: (e) => setForm({ ...form, precioActual: e.target.value }) }), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      type: "button",
+      className: "tt-btn tt-btn-ghost",
+      style: { padding: "8px 10px" },
+      disabled: !form.activo || priceStatus.form === "loading",
+      onClick: () => fetchLivePrice(form.activo, "form", (p) => setForm((f) => ({ ...f, precioActual: String(p) }))),
+      title: "Intentar obtener el precio en vivo (beta)"
+    },
+    priceStatus.form === "loading" ? "\u2026" : "Actualizar"
+  )), priceStatus.form === "error" && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--rose)", marginTop: 4 } }, 'No se pudo obtener el precio autom\xE1ticamente para "', form.activo, '". Introd\xFAcelo manualmente.')), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Cantidad"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.cantidad, onChange: (e) => setForm({ ...form, cantidad: e.target.value }), required: true })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Comisi\xF3n (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.comision, onChange: (e) => setForm({ ...form, comision: e.target.value }) }))), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Stop loss (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.stopLoss, onChange: (e) => setForm({ ...form, stopLoss: e.target.value }) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Take profit (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: form.takeProfit, onChange: (e) => setForm({ ...form, takeProfit: e.target.value }) }))), /* @__PURE__ */ React.createElement("div", { style: { marginBottom: 14 } }, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Notas (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", value: form.notas, onChange: (e) => setForm({ ...form, notas: e.target.value }), placeholder: "Estrategia, motivo de entrada/salida\u2026" })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 14, fontFamily: "var(--font-mono)", fontSize: 12 } }, formPreview.pnl && /* @__PURE__ */ React.createElement("span", { style: { color: formPreview.pnl.neto >= 0 ? "var(--gold)" : "var(--rose)" } }, "Resultado estimado: ", money(formPreview.pnl.neto), " (", fmtPct(formPreview.pnl.pct), ")"), formPreview.tamano > 0 && /* @__PURE__ */ React.createElement("span", { style: { color: "var(--text)" } }, "Tama\xF1o posici\xF3n: ", money(formPreview.tamano), " (", formPreview.pctTamano.toFixed(1), "% del capital)"), formPreview.riesgo != null && /* @__PURE__ */ React.createElement("span", { style: { color: account.riskPerTrade && formPreview.pctRiesgo > account.riskPerTrade ? "var(--rose)" : "var(--muted)" } }, "Riesgo: ", money(formPreview.riesgo), " (", (_e = formPreview.pctRiesgo) == null ? void 0 : _e.toFixed(1), "% del capital)", account.riskPerTrade > 0 && formPreview.pctRiesgo > account.riskPerTrade ? " \xB7 supera tu l\xEDmite por operaci\xF3n" : ""), formPreview.ratioRB != null && /* @__PURE__ */ React.createElement("span", { style: { color: "var(--muted)" } }, "Ratio R/B planeado: 1:", formPreview.ratioRB.toFixed(2))), /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-gold", type: "submit" }, editingId ? "Guardar cambios" : "Registrar operaci\xF3n")), /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, overflowX: "auto" }, className: "tt-scrollbar" }, sortedTable.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { padding: 32, textAlign: "center", fontFamily: "var(--font-body)", color: "var(--muted)", fontSize: 13 } }, "A\xFAn no hay operaciones. Registra la primera para empezar a ver tus estad\xEDsticas.") : /* @__PURE__ */ React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 820 } }, /* @__PURE__ */ React.createElement("thead", null, /* @__PURE__ */ React.createElement("tr", null, /* @__PURE__ */ React.createElement("th", { style: thBaseStyle }), [
+    ["fecha", "Fecha"],
+    ["activo", "Activo"],
+    ["direccion", "Dir."],
+    ["estado", "Estado"],
+    ["entrada", "Entrada"],
+    ["salida", "Salida"],
+    ["cantidad", "Cant."],
+    ["neto", "P/L"],
+    ["pct", "P/L %"]
+  ].map(([key, label]) => /* @__PURE__ */ React.createElement("th", { key, className: "tt-th", onClick: () => toggleSort(key), style: { ...thBaseStyle, color: sortKey === key ? "var(--text)" : "var(--muted)" } }, label, " ", sortKey === key ? sortDir === "asc" ? "\u2191" : "\u2193" : "")), /* @__PURE__ */ React.createElement("th", { style: thBaseStyle }))), /* @__PURE__ */ React.createElement("tbody", null, sortedTable.map((o) => {
+    const unrealized = calcUnrealized(o);
+    const isOpen = o.estado === "abierta";
+    const displayNeto = isOpen ? unrealized == null ? void 0 : unrealized.neto : o.neto;
+    const displayPct = isOpen ? unrealized == null ? void 0 : unrealized.pct : o.pct;
+    const u = users.find((u2) => u2.id === o.usuarioId);
+    return /* @__PURE__ */ React.createElement(React.Fragment, { key: o.id }, /* @__PURE__ */ React.createElement("tr", { className: "tt-row", style: { borderBottom: expandedRow === o.id ? "none" : "1px solid var(--border)", cursor: "pointer" }, onClick: () => setExpandedRow(expandedRow === o.id ? null : o.id) }, /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, width: 26 } }, expandedRow === o.id ? /* @__PURE__ */ React.createElement(ChevronDown, { size: 14, color: "var(--muted)" }) : /* @__PURE__ */ React.createElement(ChevronRight, { size: 14, color: "var(--muted)" })), /* @__PURE__ */ React.createElement("td", { style: tdStyle }, fmtDate(o.fecha)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)" } }, o.activo), /* @__PURE__ */ React.createElement("td", { style: tdStyle }, /* @__PURE__ */ React.createElement(Badge, { color: o.direccion === "corta" ? "var(--rose)" : "var(--text)", bg: o.direccion === "corta" ? "rgba(225,89,90,0.15)" : "rgba(124,138,160,0.15)" }, o.direccion === "corta" ? "CORTA" : "LARGA")), /* @__PURE__ */ React.createElement("td", { style: tdStyle }, /* @__PURE__ */ React.createElement(Badge, { color: isOpen ? "var(--gold)" : "var(--muted)", bg: isOpen ? "rgba(212,169,77,0.15)" : "rgba(124,138,160,0.1)" }, isOpen ? "ABIERTA" : "CERRADA")), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)" } }, Number(o.entrada).toFixed(2)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)" } }, isOpen ? "\u2014" : Number(o.salida).toFixed(2)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)" } }, o.cantidad), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)", fontWeight: 600, color: displayNeto == null ? "var(--muted)" : displayNeto >= 0 ? "var(--gold)" : "var(--rose)" } }, displayNeto == null ? "\u2014" : money(displayNeto), isOpen && displayNeto != null && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, color: "var(--muted)" } }, " (no real.)")), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, fontFamily: "var(--font-mono)", color: displayPct == null ? "var(--muted)" : displayPct >= 0 ? "var(--gold)" : "var(--rose)" } }, displayPct == null ? "\u2014" : fmtPct(displayPct)), /* @__PURE__ */ React.createElement("td", { style: { ...tdStyle, whiteSpace: "nowrap" }, onClick: (e) => e.stopPropagation() }, isOpen && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => updateOpLivePrice(o),
+        style: iconBtnStyle,
+        title: "Actualizar precio en vivo (beta)",
+        disabled: priceStatus[o.id] === "loading"
+      },
+      /* @__PURE__ */ React.createElement(RefreshCw, { size: 14, className: priceStatus[o.id] === "loading" ? "tt-spin" : "" })
+    ), /* @__PURE__ */ React.createElement("button", { onClick: () => editOp(o), style: { ...iconBtnStyle, marginLeft: isOpen ? 4 : 0 }, title: "Editar" }, /* @__PURE__ */ React.createElement(Pencil, { size: 14 })), /* @__PURE__ */ React.createElement("button", { onClick: () => deleteOp(o.id), style: { ...iconBtnStyle, marginLeft: 4 }, title: "Eliminar" }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 })), priceStatus[o.id] === "error" && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "var(--rose)", marginTop: 3 } }, "Sin precio"))), expandedRow === o.id && /* @__PURE__ */ React.createElement("tr", { style: { borderBottom: "1px solid var(--border)" } }, /* @__PURE__ */ React.createElement("td", { colSpan: 11, style: { background: "var(--surface-2)", padding: "12px 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 20, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text)" } }, /* @__PURE__ */ React.createElement("span", null, "Usuario: ", /* @__PURE__ */ React.createElement("b", { style: { color: "var(--text)" } }, (u == null ? void 0 : u.nombre) || "Sin asignar")), o.fechaEntrada && /* @__PURE__ */ React.createElement("span", null, "Fecha compra: ", fmtDate(o.fechaEntrada)), o.hora && /* @__PURE__ */ React.createElement("span", null, "Hora: ", o.hora), o.stopLoss && /* @__PURE__ */ React.createElement("span", null, "Stop loss: ", Number(o.stopLoss).toFixed(2)), o.takeProfit && /* @__PURE__ */ React.createElement("span", null, "Take profit: ", Number(o.takeProfit).toFixed(2)), calcRiesgo(o) != null && /* @__PURE__ */ React.createElement("span", null, "Riesgo: ", money(calcRiesgo(o))), calcRatioRB(o) != null && /* @__PURE__ */ React.createElement("span", null, "Ratio R/B planeado: 1:", calcRatioRB(o).toFixed(2)), o.comision && /* @__PURE__ */ React.createElement("span", null, "Comisi\xF3n: ", money(Number(o.comision)))), o.notas && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 8, fontFamily: "var(--font-body)", fontSize: 13, color: "var(--muted)" } }, o.notas))));
+  })))), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 24, fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)" } }, "Los datos se guardan autom\xE1ticamente en tu almacenamiento personal."));
+}
+function SectionTitle({ children }) {
+  return /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 10 } }, children);
+}
+function StatCard({ label, value, sub, positive, plain, neutral, icon: Icon2 }) {
+  const color = neutral ? "var(--text)" : positive ? "var(--gold)" : "var(--rose)";
+  return /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: "14px 16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("div", { className: "tt-label", style: { marginBottom: 6 } }, label), Icon2 && !plain && /* @__PURE__ */ React.createElement(Icon2, { size: 13, color })), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-mono)", fontSize: 19, fontWeight: 600, color } }, value), sub && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)", marginTop: 2 } }, sub));
+}
+function BreakdownCard({ title, rows, labelKey, money }) {
+  const max = Math.max(1, ...rows.map((r) => Math.abs(r.pnl)));
+  return /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: 18 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, marginBottom: 12 } }, title), rows.length === 0 && /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)" } }, "Sin datos todav\xEDa."), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, rows.slice(0, 8).map((r) => /* @__PURE__ */ React.createElement("div", { key: r[labelKey], style: { display: "flex", alignItems: "center", gap: 10 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 90, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, r[labelKey]), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, height: 6, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${Math.abs(r.pnl) / max * 100}%`, background: r.pnl >= 0 ? "var(--gold)" : "var(--rose)", borderRadius: 4 } })), /* @__PURE__ */ React.createElement("div", { style: { width: 90, textAlign: "right", fontFamily: "var(--font-mono)", fontSize: 12, color: r.pnl >= 0 ? "var(--gold)" : "var(--rose)" } }, money(r.pnl))))));
+}
+function RiskBar({ label, used, limit }) {
+  const pct = limit > 0 ? Math.min(100, used / limit * 100) : 0;
+  const over = limit > 0 && used > limit;
+  return /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)", marginBottom: 4 } }, /* @__PURE__ */ React.createElement("span", null, label), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-mono)", color: over ? "var(--rose)" : "var(--text)" } }, used.toFixed(1), "% ", limit > 0 ? `/ ${limit}%` : "(sin l\xEDmite)")), /* @__PURE__ */ React.createElement("div", { style: { height: 6, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${pct}%`, background: over ? "var(--rose)" : "var(--gold)", borderRadius: 4 } })));
+}
+function UserSwitcher({ users, currentUserId, onSwitch }) {
+  const current = users.find((u) => u.id === currentUserId);
+  return /* @__PURE__ */ React.createElement("div", { style: { position: "relative", display: "inline-flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(UserCircle, { size: 16, color: "var(--muted)" }), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      className: "tt-input",
+      style: { paddingRight: 26, appearance: "none", fontFamily: "var(--font-body)", width: "auto", minWidth: 130 },
+      value: currentUserId || "",
+      onChange: (e) => onSwitch(e.target.value)
+    },
+    users.map((u) => /* @__PURE__ */ React.createElement("option", { key: u.id, value: u.id }, u.nombre, " ", u.rol === "admin" ? "\xB7 admin" : ""))
+  ));
+}
+function Badge({ children, color, bg }) {
+  return /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, padding: "2px 7px", borderRadius: 4, fontFamily: "var(--font-body)", background: bg, color } }, children);
+}
+function SettingsPanel({
+  configDraft,
+  setConfigDraft,
+  saveConfig,
+  users,
+  userForm,
+  setUserForm,
+  addUser,
+  changeUserRole,
+  deleteUser,
+  currentUserId,
+  movements,
+  showMovementForm,
+  setShowMovementForm,
+  movementForm,
+  setMovementForm,
+  submitMovement,
+  deleteMovement,
+  settingsTab,
+  setSettingsTab,
+  onClose,
+  money
+}) {
+  return /* @__PURE__ */ React.createElement("div", { style: { ...cardStyle, padding: 20, marginBottom: 24 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600 } }, "Ajustes"), /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-ghost", onClick: onClose }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 18, borderBottom: "1px solid var(--border)" } }, [
+    ["cuenta", "Cuenta"],
+    ["usuarios", "Usuarios"],
+    ["liquidez", "Movimientos de liquidez"]
+  ].map(([key, label]) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key,
+      onClick: () => setSettingsTab(key),
+      style: {
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: "8px 4px 10px",
+        fontFamily: "var(--font-body)",
+        fontSize: 13,
+        fontWeight: 600,
+        color: settingsTab === key ? "var(--gold)" : "var(--muted)",
+        borderBottom: settingsTab === key ? "2px solid var(--gold)" : "2px solid transparent",
+        marginRight: 12
+      }
+    },
+    label
+  ))), settingsTab === "cuenta" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Moneda"), /* @__PURE__ */ React.createElement("select", { className: "tt-input", value: configDraft.currency, onChange: (e) => setConfigDraft({ ...configDraft, currency: e.target.value }) }, Object.keys(CURRENCIES).map((c) => /* @__PURE__ */ React.createElement("option", { key: c, value: c }, c)))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "L\xEDmite riesgo por operaci\xF3n (%)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: configDraft.riskPerTrade, onChange: (e) => setConfigDraft({ ...configDraft, riskPerTrade: e.target.value }) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "L\xEDmite riesgo diario (%)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: configDraft.riskDaily, onChange: (e) => setConfigDraft({ ...configDraft, riskDaily: e.target.value }) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "L\xEDmite riesgo semanal (%)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: configDraft.riskWeekly, onChange: (e) => setConfigDraft({ ...configDraft, riskWeekly: e.target.value }) }))), /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-gold", onClick: saveConfig }, "Guardar ajustes"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 11, color: "var(--muted)", marginTop: 12 } }, "Nota: el acceso a Ajustes se limita al usuario marcado como administrador dentro de la app, pero no hay contrase\xF1a real \u2014 cualquiera con acceso a la app puede cambiar de usuario. \xDAsalo para organizar roles, no como seguridad.")), settingsTab === "usuarios" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 } }, users.map((u) => /* @__PURE__ */ React.createElement("div", { key: u.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--surface-2)", borderRadius: 7 } }, /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-body)", fontSize: 13, flex: 1 } }, u.nombre, " ", u.id === currentUserId && /* @__PURE__ */ React.createElement("span", { style: { color: "var(--muted)", fontSize: 11 } }, "(activo)")), /* @__PURE__ */ React.createElement("select", { className: "tt-input", style: { width: 130 }, value: u.rol, onChange: (e) => changeUserRole(u.id, e.target.value) }, /* @__PURE__ */ React.createElement("option", { value: "admin" }, "Administrador"), /* @__PURE__ */ React.createElement("option", { value: "estandar" }, "Est\xE1ndar")), /* @__PURE__ */ React.createElement("button", { onClick: () => deleteUser(u.id), style: iconBtnStyle, title: "Eliminar usuario" }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 }))))), /* @__PURE__ */ React.createElement("form", { onSubmit: addUser, style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement("input", { className: "tt-input", placeholder: "Nombre del nuevo usuario", value: userForm.nombre, onChange: (e) => setUserForm({ ...userForm, nombre: e.target.value }) }), /* @__PURE__ */ React.createElement("select", { className: "tt-input", style: { width: 130 }, value: userForm.rol, onChange: (e) => setUserForm({ ...userForm, rol: e.target.value }) }, /* @__PURE__ */ React.createElement("option", { value: "estandar" }, "Est\xE1ndar"), /* @__PURE__ */ React.createElement("option", { value: "admin" }, "Administrador")), /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-gold", type: "submit" }, "A\xF1adir"))), settingsTab === "liquidez" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-ghost", onClick: () => setShowMovementForm((s) => !s) }, showMovementForm ? /* @__PURE__ */ React.createElement(X, { size: 14 }) : /* @__PURE__ */ React.createElement(Plus, { size: 14 }), showMovementForm ? "Cancelar" : "Nuevo movimiento")), showMovementForm && /* @__PURE__ */ React.createElement("form", { onSubmit: submitMovement, style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Fecha"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "date", value: movementForm.fecha, onChange: (e) => setMovementForm({ ...movementForm, fecha: e.target.value }) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Tipo"), /* @__PURE__ */ React.createElement("select", { className: "tt-input", value: movementForm.tipo, onChange: (e) => setMovementForm({ ...movementForm, tipo: e.target.value }) }, /* @__PURE__ */ React.createElement("option", { value: "aporte" }, "Aporte"), /* @__PURE__ */ React.createElement("option", { value: "retiro" }, "Retiro"))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Importe"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", type: "number", step: "any", value: movementForm.monto, onChange: (e) => setMovementForm({ ...movementForm, monto: e.target.value }), required: true })), /* @__PURE__ */ React.createElement("div", { style: { gridColumn: "1 / -1" } }, /* @__PURE__ */ React.createElement("label", { className: "tt-label" }, "Nota (opcional)"), /* @__PURE__ */ React.createElement("input", { className: "tt-input", value: movementForm.nota, onChange: (e) => setMovementForm({ ...movementForm, nota: e.target.value }) })), /* @__PURE__ */ React.createElement("div", { style: { gridColumn: "1 / -1" } }, /* @__PURE__ */ React.createElement("button", { className: "tt-btn tt-btn-gold", type: "submit" }, "Guardar movimiento"))), movements.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)" } }, "Sin movimientos de liquidez registrados.") : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, [...movements].reverse().map((m) => /* @__PURE__ */ React.createElement("div", { key: m.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--surface-2)", borderRadius: 7 } }, m.tipo === "aporte" ? /* @__PURE__ */ React.createElement(ArrowUpRight, { size: 14, color: "var(--gold)" }) : /* @__PURE__ */ React.createElement(ArrowDownRight, { size: 14, color: "var(--rose)" }), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)", width: 90 } }, fmtDate(m.fecha)), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-mono)", fontSize: 13, color: m.tipo === "aporte" ? "var(--gold)" : "var(--rose)", flex: 1 } }, m.tipo === "aporte" ? "+" : "-", money(m.monto)), /* @__PURE__ */ React.createElement("span", { style: { fontFamily: "var(--font-body)", fontSize: 12, color: "var(--muted)" } }, m.nota), /* @__PURE__ */ React.createElement("button", { onClick: () => deleteMovement(m.id), style: iconBtnStyle, title: "Eliminar" }, /* @__PURE__ */ React.createElement(Trash2, { size: 13 })))))));
+}
+function GlobalStyle() {
+  return /* @__PURE__ */ React.createElement("style", null, `
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
+      * { box-sizing: border-box; }
+      .tt-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+      .tt-scrollbar::-webkit-scrollbar-thumb { background: #2A3550; border-radius: 4px; }
+      .tt-input {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-family: var(--font-body);
+        font-size: 13px;
+        width: 100%;
+        outline: none;
+        transition: border-color .15s;
+      }
+      .tt-input:focus { border-color: var(--gold); }
+      .tt-label {
+        font-family: var(--font-body);
+        font-size: 11px;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 5px;
+        display: block;
+      }
+      .tt-btn {
+        font-family: var(--font-body);
+        font-weight: 600;
+        font-size: 13px;
+        border-radius: 7px;
+        padding: 9px 16px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: opacity .15s, transform .1s;
+      }
+      .tt-btn:active { transform: scale(0.98); }
+      .tt-btn-gold { background: var(--gold); color: #17110A; }
+      .tt-btn-gold:hover { opacity: .9; }
+      .tt-btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+      .tt-btn-ghost:hover { background: var(--surface-2); }
+      .tt-row:hover { background: var(--surface-2) !important; }
+      .tt-th { cursor: pointer; user-select: none; }
+      .tt-th:hover { color: var(--text) !important; }
+      .tt-spin { animation: tt-spin-anim 0.8s linear infinite; }
+      @keyframes tt-spin-anim { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    `);
+}
+const rootStyle = {
+  "--bg": "#0B1220",
+  "--surface": "#121A2B",
+  "--surface-2": "#1A2438",
+  "--border": "#232F45",
+  "--gold": "#D4A94D",
+  "--rose": "#E1595A",
+  "--text": "#EDF1F7",
+  "--muted": "#7C8AA0",
+  "--font-display": "'Space Grotesk', sans-serif",
+  "--font-body": "'Inter', sans-serif",
+  "--font-mono": "'IBM Plex Mono', monospace",
+  background: "var(--bg)",
+  color: "var(--text)",
+  padding: "28px 22px 40px",
+  minHeight: "100%",
+  fontFamily: "var(--font-body)",
+  borderRadius: 12
+};
+const cardStyle = { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10 };
+const tdStyle = { padding: "10px 14px", fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text)" };
+const thBaseStyle = {
+  textAlign: "left",
+  fontFamily: "var(--font-body)",
+  fontSize: 11,
+  letterSpacing: ".05em",
+  textTransform: "uppercase",
+  color: "var(--muted)",
+  padding: "10px 14px",
+  borderBottom: "1px solid var(--border)",
+  whiteSpace: "nowrap"
+};
+const iconBtnStyle = {
+  background: "transparent",
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  padding: 5,
+  color: "var(--muted)",
+  cursor: "pointer",
+  display: "inline-flex"
+};
+const eyebrowStyle = {
+  fontFamily: "var(--font-body)",
+  fontSize: 11,
+  letterSpacing: ".12em",
+  textTransform: "uppercase",
+  color: "var(--muted)",
+  marginBottom: 4
+};
+const warnBannerStyle = {
+  background: "#3A2230",
+  border: "1px solid #5A2E3E",
+  color: "#F2C4CF",
+  padding: "10px 14px",
+  borderRadius: 8,
+  fontSize: 13,
+  marginBottom: 16,
+  fontFamily: "var(--font-body)"
+};
+ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(TradingTracker, null));
+
+</script>
+</body>
+</html>
